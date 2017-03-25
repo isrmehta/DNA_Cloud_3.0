@@ -45,9 +45,22 @@ def getChunkId(string):
  #print string,ans1
  return ans1	
         
-	
+count1 = 0
 	
 def compare_chunks(a,b):
+	#global count1
+	#count1 = count1 + 1
+	global numberOfTimesComparatorCalled
+	global estimatedTime
+	global signalStatus
+
+	numberOfTimesComparatorCalled = numberOfTimesComparatorCalled + 1
+	numberOfTimesComparatorCalled = min(numberOfTimesComparatorCalled,estimatedTime)
+	percentageCompleted = int((numberOfTimesComparatorCalled*1.00/(estimatedTime))*60)
+	if numberOfTimesComparatorCalled%100 == 0:
+		#print percentageCompleted
+		signalStatus.emit(str(int(percentageCompleted)))
+
 	global regularChunkSize
 	if len(a) > regularChunkSize:	#can be Godchunk, remember it has no chunk id
 		return -1
@@ -120,13 +133,16 @@ def findChunkIdLength(fileToRead):
 
 
 
+estimatedTime = 0
+numberOfTimesComparatorCalled = 0
+signalStatus = None
 
-
-def refine(filename,signalStatus):
+def refine(filename,signalStatus1):
         
 	GolayDictionary.initDict()
-	global regularChunkSize,mulength,fileIdTrits
+	global regularChunkSize,mulength,fileIdTrits,signalStatus
 	mulength=findChunkIdLength(filename)
+	signalStatus = signalStatus1
 	
 	regularChunkSize=mulength + (1 + 99 + fileIdTrits + 1 + 1 + 1) #new line character included
 	
@@ -134,13 +150,17 @@ def refine(filename,signalStatus):
 		
 		fileToRead=io.open(filename,'r')
 		chunks=fileToRead.readlines()
+		global estimatedTime
+		estimatedTime = len(chunks)*math.ceil( math.log(len(chunks),2))
 		chunks=sorted(chunks,cmp=compare_chunks)
+
+		#print 'Hi',count1,estimatedTime
 		
 		for chunk in chunks:
 			if chunk[0] == 'G' or chunk[0]=='C':
     				chunk=ExtraModules.reverseComplement(chunk)
 			OutputFile.write(chunk)
-        return
+        return int((numberOfTimesComparatorCalled*1.00/(estimatedTime))*60)
 		
 		
 		
