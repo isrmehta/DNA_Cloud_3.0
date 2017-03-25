@@ -27,7 +27,8 @@ def getDirectory(fileName):
    return fileName[:i+1]
 
 def decodeGolay(fileToRead,signalStatus):
-   BeforeGolayDecode.refine(fileToRead,signalStatus)
+   perDone = BeforeGolayDecode.refine(fileToRead,signalStatus)
+   perLeft = 100 - perDone
    countOfBytes =  0 # for calculating percentage
    global percentageCompleted
    global fileLength
@@ -56,13 +57,13 @@ def decodeGolay(fileToRead,signalStatus):
    outputFile = io.open(getDirectory(fileToRead)+finalFileName,"wb")  # decoded FILE object
         
    percentageCompleted = (countOfBytes*1.00/fileLength)*100
-   signalStatus.emit(str(int(percentageCompleted)))
+   #signalStatus.emit(str(int(percentageCompleted)))
    countOfChunks = 0
    prevBase = 'A'                        # maintaning previous base for differential decoding
    for chunk in inputFile:
       countOfChunks = countOfChunks + 1
       countOfBytes = countOfBytes + len(chunk)
-      percentageCompleted = (countOfBytes*1.00/fileLength)*100
+      percentageCompleted = perDone + (countOfBytes*1.00/fileLength)*perLeft
       if countOfChunks % 1000 == 0 :
          signalStatus.emit(str(int(percentageCompleted)))
       data = chunk[1:-1*extraTrits]
