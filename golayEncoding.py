@@ -1,138 +1,51 @@
 """
-######################################
+#################################################################
 Author: Aayush Kapadia,Suparshva Mehta
 Project: DNA Cloud 3
-Graduate Mentor: Dixita Limbachya
+Graduate Mentor: Dixita Limbachiya
 Mentor: Prof. Manish K Gupta
 Website: www.guptalab.org/dnacloud
-This file implements Golay encoding.
-######################################
+This module encodes a file into DNA strands using Golay encoding.
+#################################################################
 """
+
 import io
-import GolayDictionary
-import ExtraModules
 import math
 import os
 import random
 
-# Binary files to DNA String Convertor
-# Input : fileName and fileID to be used
-# Output : file converted to it's DNA string. Each chunk contains at most 9 bytes. 
-# Limitation: No Limitation on size of file 
+import GolayDictionary
+import ExtraModules
 
-numberOfFiles = 9
-
-def removeBackSlash(fileName):
-   i = len(fileName) - 1
-   while i>=0 :
-     if fileName[i] == "\\" or fileName[i] =='/'  :
-        break
-     i = i - 1
-   return fileName[i+1:]
-
-def encode(fileName,fileId,fileExtension,signalStatus):
-    wholeFileName = ''
-    if not fileExtension:
-       wholeFileName = fileName
-    else:
-       wholeFileName = fileName + '.' + fileExtension
-    currFile = io.open(wholeFileName, "rb")
-    outputFile = io.open(wholeFileName+'.dnac',"w")
-
-    fileName = removeBackSlash(fileName)
-    
-    global numberOfFiles
-    fileIdInTrits=ExtraModules.intToBase3(fileId, int(math.ceil( math.log(numberOfFiles,3) )) ) 
-    
-    # calculating no of trits required for chunk ID
-    fileLength= os.path.getsize(wholeFileName)
-    numberOfFileNameChunks = int(math.ceil(len(fileName) /9.0)) #divide by 9 because max 9 bytes in a chunk
-    numberOfChunks=int( math.ceil(fileLength/9.0) + numberOfFileNameChunks +1.0 ) #ceil apparently gives real number and not int
-    mu=int( math.ceil( math.log(numberOfChunks,3) ) ) #number of trits required to address chunk indices
-   
-    # creating the meta chunks
-
-    # writing the header chunk 
-    
-    headerchunkpart1= ExtraModules.encodeSTR(GolayDictionary.encodeDirect(numberOfFileNameChunks),'A') 
-    SizeByteStream=fileSizeEncoding(fileLength)
-    noOfBytesToStoreSize=len(SizeByteStream)
-    TritsForSizeBytes=ExtraModules.encodeSTR(ExtraModules.intToBase3(noOfBytesToStoreSize//11-1,2),headerchunkpart1[-1])
-    headerchunkpart1=headerchunkpart1+TritsForSizeBytes
-    regChunkSize=1+99+len(fileIdInTrits)+mu+1+1
-    howMuchToRepeat=int(math.ceil((regChunkSize*1.0)/noOfBytesToStoreSize))
-    headerchunkpart2= ExtraModules.encodeSTR(SizeByteStream*howMuchToRepeat ,headerchunkpart1[-1])
-    headerFinal = headerchunkpart1+headerchunkpart2
-    headerChunk = addGuardBases(headerFinal+getExtraTrits(fileIdInTrits,"",headerFinal[-1]))
-    outputFile.write(unicode(headerChunk+'\n'))
-    
-    #file extension goes here in the next chunk
-    extensionData = ExtraModules.encodeSTR(GolayDictionary.encodeSTR(fileExtension),'A')
-    #print fileExtension,' ',GolayDictionary.encodeSTR(fileExtension),' ',extensionData ,' Hello ', extensionData[-1]
-    extensionChunk = addGuardBases(extensionData+getExtraTrits(fileIdInTrits,'0'*mu,extensionData[-1]))
-    outputFile.write(unicode(extensionChunk+'\n'))
-    
-    #file name chunks go on here onwards and thereafter the loop for data
-    chunkIndex=1
-    for i in xrange(0,len(fileName),9):
-        chunkIdinTrits=ExtraModules.intToBase3(chunkIndex,mu)
-        fileNameData = ExtraModules.encodeSTR(GolayDictionary.encodeSTR(fileName[i:i+9]),'A')
-        fileNameCurrChunk = addGuardBases(fileNameData+getExtraTrits(fileIdInTrits,chunkIdinTrits,fileNameData[-1]))
-        outputFile.write(unicode(fileNameCurrChunk+'\n'))
-        chunkIndex=chunkIndex+1
-    
-    #writting the payload
-    prevBase='A'
-    countOfBytes =  0 # for calculating percentage of work done
-    global percentageCompleted
-    global fileLength12
-    numberOfChunks1 = 0
-    while True:
-        numberOfChunks1 = numberOfChunks1 + 1
-        currChunkElements = currFile.read(9)
-        if (not currChunkElements):   # There are no bytes left in the file
+# Input : Absolute Path Of A File
+# Output : Name Of The File With Extension
+def getFileNameWithExtensionFromPath(path):
+    i = len(path) - 1
+    while i>=0 :
+        if path[i] == "\\" or path[i] =='/'  :
             break
-        countOfBytes+=len(currChunkElements)
-        percentageCompleted = (countOfBytes*1.00/fileLength12)*100
-        if(numberOfChunks1%1000==0) :
-           signalStatus.emit(str(int(percentageCompleted)))
-        payLoadData = ExtraModules.encodeSTR( GolayDictionary.encodeSTR(currChunkElements),prevBase ) #make this chunk creator
-        prevBase = payLoadData[-1]
-        chunkIndexInTrits= ExtraModules.intToBase3(chunkIndex,mu)
-        chunkIndex=chunkIndex+1
-        payloadChunk = addGuardBases(payLoadData+getExtraTrits(fileIdInTrits,chunkIndexInTrits,payLoadData[-1]))
-        outputFile.write(unicode(payloadChunk+'\n'))
-    signalStatus.emit('100')  # completion of task signal
-        
-def generateParity(chunkIndexInTrits,fileIdInTrits):
-    header= fileIdInTrits+chunkIndexInTrits
-    lengthHeader=len(header)
-    p = 0
-    for x in xrange(0,lengthHeader,2):
-       p = p + int(header[x])
-    p = p % 3
-    return str(p)
+        i = i - 1
+    return path[i+1:]
 
-def getExtraTrits(fileIDInTrits,chunkIDInTrits,prevBase):
-   parityInTrits = generateParity(chunkIDInTrits,fileIDInTrits)
-   extra = fileIDInTrits + chunkIDInTrits + parityInTrits
-   #print fileIDInTrits,chunkIDInTrits,parityInTrits
-   #print extra
-   return ExtraModules.encodeSTR(extra,prevBase)
+# Input : File Name with extension eg. example.txt
+# Output : Pair of fileName and its extension. eg ['example','txt']
+# If no extension present then extension is set default to txt
+def getFileNameAndExtension(fileNameWithExtension) :
+    i = len(fileNameWithExtension) - 1
+    while i>=0 :
+      if fileNameWithExtension[i] == '.' :
+        break
+      i = i - 1
+    if i==-1 :
+      return fileNameWithExtension,'.txt'
+    return fileNameWithExtension[:i],fileNameWithExtension[i+1:]
 
-# Input : Size of the file	
-def fileSizeEncoding(input1):
-    output=[]
-    while input1!=0:
-        output.append(GolayDictionary.encodeDirect((input1%256)))
-        input1 = input1//256             
-    return ''.join(output)      
-    
-
-def addGuardBases(input1):
-    if input1[0] == 'A' :
+# Input : DNA Chunk
+# Output : DNA Chunk with guard bases added to its beginning and end
+def addGuardBases(chunk):
+    if chunk[0] == 'A' :
         startBase = 'T'
-    elif input1[0] == 'T' :
+    elif chunk[0] == 'T' :
         startBase = 'A'
     else :
         randomNum = random.random()
@@ -141,9 +54,9 @@ def addGuardBases(input1):
         else:
           startBase = 'T'
 
-    if input1[-1] == 'C' :
+    if chunk[-1] == 'C' :
         endBase = 'G'
-    elif input1[-1] == 'G' :
+    elif chunk[-1] == 'G' :
         endBase = 'C'
     else :
         randomNum = random.random()
@@ -151,26 +64,121 @@ def addGuardBases(input1):
           endBase = 'C'
         else:
           endBase = 'G'
-    return startBase + input1 + endBase
 
-def encodeFile(str1,signalStatus):
-    global fileLength12
-    fileLength12 = os.path.getsize(str1)
-    fileID12 = 1
-    fileName12 , fileExtension12 = seperateExtensionAndFileName(str1)
-    encode(fileName12,fileID12,fileExtension12,signalStatus)
+    return startBase + chunk + endBase
 
-def seperateExtensionAndFileName(fileName) :
-    i = len(fileName) - 1
-    while i>=0 :
-      if fileName[i] == '.' :
-        break
-      i = i - 1
-    if i==-1 :
-      return fileName,'.txt'
-    return fileName[:i],fileName[i+1:]
+# Input : String data for which parity trit to be generated
+# Output : Sum of all odd trits modulo 3
+def getParityTrit(data):
+    lengthOfData = len(data)
+    parity = 0
+    for i in xrange(0,lengthOfData,2):
+       parity = parity + int(data[i])
+    parity = parity % 3
+    return str(parity)
+
+# fileIDInTrits : File ID that is to be encoded
+# chunkIdInTrits : Chunk ID to identify the chunk
+# prevBase : Used in relative encoding from trits to DNA bases
+# Output : DNA Bases which encodes extra info needed for processing during decoding
+def getExtraInfoInDNABases(fileIDInTrits,chunkIDInTrits,prevBase):
+   parityInTrits = getParityTrit(chunkIDInTrits+fileIDInTrits)
+   extraInfo = fileIDInTrits + chunkIDInTrits + parityInTrits
+   return ExtraModules.encodeSTR(extraInfo,prevBase)
+
+# Input : Size of the file  
+# Output : The encoded trits for file size
+def encodeFileSize(sizeOfTheFile):
+    output = []
+    while sizeOfTheFile!=0:
+        output.append(GolayDictionary.encodeDirect((sizeOfTheFile%256)))
+        sizeOfTheFile = sizeOfTheFile//256             
+    return ''.join(output) 
+
+maxNoOfFilesToBeEncodedInSingleFile = 9
+
+# filePath : Absolute Path Of The File to be encoded
+# fileId : ID of the file (to be used when two files are encoded into a single file)
+# signalStatus : To be notified constantly about the progress of the encoding prodecure
+def encode(filePath,fileId,signalStatus):
+    inputFile = io.open(filePath,"rb")
+    outputFile = io.open(filePath+'.dnac',"w")
+
+    fileNameWithExtension = getFileNameWithExtensionFromPath(filePath)
+    fileName,fileExtension = getFileNameAndExtension(fileNameWithExtension)
     
+    global maxNoOfFilesToBeEncodedInSingleFile
+    fileIdInTrits=ExtraModules.intToBase3(fileId, int(math.ceil( math.log(maxNoOfFilesToBeEncodedInSingleFile,3) )) ) 
+    
+    # calculating no of trits required for chunk ID (mu)
+    fileLength= os.path.getsize(filePath)
+    numberOfFileNameChunks = int(math.ceil(len(fileName) /9.0)) #divide by 9 because max 9 bytes in a chunk
+    numberOfExtensionChunks = 1
+    numberOfFileDataChunks = int(math.ceil(fileLength/9.0))
+    numberOfChunks = numberOfFileNameChunks + numberOfExtensionChunks + numberOfFileDataChunks
+    mu=int( math.ceil( math.log(numberOfChunks,3) ) ) #number of trits required to address chunk indices
+   
+    # creating the god chunk 
+    noOfFileNameChunksInTrits = GolayDictionary.encodeDirect(numberOfFileNameChunks)
+    noOfFileNameChunksInDNABases = ExtraModules.encodeSTR(noOfFileNameChunksInTrits,'A') 
 
-fileLength12 = 0
-percentageCompleted = 0
+    fileSizeInTrits = encodeFileSize(fileLength)
+
+    noOfFileSizeTritsInTrits = ExtraModules.intToBase3(len(fileSizeInTrits)//11-1,2)
+    noOfFileSizeTritsInDNABases = ExtraModules.encodeSTR(noOfFileSizeTritsInTrits,noOfFileNameChunksInDNABases[-1])
+
+    maxRegularChunkSize = 1+99+len(fileIdInTrits)+mu+1+1
+    howMuchToRepeat = int(math.ceil((maxRegularChunkSize*1.0)/len(fileSizeInTrits)))
+    repeatedFileSizeTritsInDNABases = ExtraModules.encodeSTR(fileSizeInTrits*howMuchToRepeat ,noOfFileSizeTritsInDNABases[-1])
+    godDataInDNABases = noOfFileNameChunksInDNABases + noOfFileSizeTritsInDNABases + repeatedFileSizeTritsInDNABases
+    godChunk = addGuardBases(godDataInDNABases+getExtraInfoInDNABases(fileIdInTrits,"",godDataInDNABases[-1]))
+    outputFile.write(unicode(godChunk+'\n'))
+    
+    # creating file extension chunk. There cannot be more than 9 characters in extension
+    extensionInTrits = GolayDictionary.encodeSTR(fileExtension)
+    extensionInDNABases = ExtraModules.encodeSTR(extensionInTrits,'A')
+    chunkIDInTrits = '0'*mu
+    extensionChunk = addGuardBases(extensionInDNABases+getExtraInfoInDNABases(fileIdInTrits,chunkIDInTrits,extensionInDNABases[-1]))
+    outputFile.write(unicode(extensionChunk+'\n'))
+    
+    # creating file name chunks. 9 characters of file name in each file name chunk
+    chunkIndex = 1
+    for i in xrange(0,len(fileName),9):
+        chunkIdinTrits = ExtraModules.intToBase3(chunkIndex,mu)
+        fileNameInTrits = GolayDictionary.encodeSTR(fileName[i:i+9])
+        fileNameInDNABases = ExtraModules.encodeSTR(fileNameInTrits,'A')
+        fileNameChunk = addGuardBases(fileNameInDNABases+getExtraInfoInDNABases(fileIdInTrits,chunkIdinTrits,fileNameInDNABases[-1]))
+        outputFile.write(unicode(fileNameChunk+'\n'))
+        chunkIndex = chunkIndex + 1
+    
+    # creating chunks for actual file data
+    prevBase = 'A'
+    numberOfBytesEncoded = 0 # used for calculating percentage of work done to indicate progress via signal status
+    numberOfChunksEncoded = 0
+
+    while True:
+        data = inputFile.read(9)
+        if (not data):   # There are no bytes left in the file
+            break
+
+        dataInTrits = GolayDictionary.encodeSTR(data)
+        dataInDNABases = ExtraModules.encodeSTR(dataInTrits,prevBase) 
+        prevBase = dataInDNABases[-1]
+
+        chunkIndexInTrits = ExtraModules.intToBase3(chunkIndex,mu)
+        payloadChunk = addGuardBases(dataInDNABases+getExtraInfoInDNABases(fileIdInTrits,chunkIndexInTrits,dataInDNABases[-1]))
+        outputFile.write(unicode(payloadChunk+'\n'))
+
+        chunkIndex = chunkIndex + 1
+        numberOfBytesEncoded+=len(data)
+        numberOfChunksEncoded = numberOfChunksEncoded + 1
+
+        percentageCompleted = (numberOfBytesEncoded*1.00/fileLength)*100
+        if(numberOfChunksEncoded%1000==0) :  # Send progress signal after every 1000 chunks encoded
+           signalStatus.emit(str(int(percentageCompleted)))
+
+    signalStatus.emit('100')  # completion of task signal.
         
+def encodeFile(filePath,signalStatus):
+    fileID = 1
+    encode(filePath,fileID,signalStatus)
