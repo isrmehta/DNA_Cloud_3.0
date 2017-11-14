@@ -66,7 +66,7 @@ class CostEstimation(QDialog) :
 		if self.fileName == '' or (not self.fileName) :
 			return
 		totDNABases = self.calculateDNABases(os.path.getsize(self.fileName),self.encodingValue.currentText())
-		costVal = self.costPerDNA.value() * self.totDNABases
+		costVal = self.costPerDNA.value() * totDNABases
 		self.costValue.setText("%0.2f" % costVal)
    
 	def calculateDNABases(self,fileSize,encodingType) :
